@@ -1,0 +1,7 @@
+title: Test R notebook
+author: natasha Dhamrait
+output: Pdf_document
+
+''' {r}
+yo
+'''
