@@ -1,0 +1,23 @@
+CODE OF CONDUCT
+
+1) GitHub etiquette
+- Fork and work in your own repo, then generate a pull request to merge with main repo
+- Be detailed in your descriptions in edits and pull requests
+- To approve Pull Requests, the first person who approves it will react to it and the second person who approves it will merge
+- Tag people in pull requests so teammates know to check and approve it - let each other know if a pull request is l i n g e r i n g
+- Issues tab: start discussions, ask questions, problems. Flagged based on type of problem
+- Different stats code should be in different files - e.g. spatial stats should be different file than models
+- Projects tab: to-do cards —> move over to in-progress and done. Use this to track individual progress. Use to assign tasks
+
+2) Logistics
+- Meet twice a week during class time
+- Assign tasks during one of these meetings - don’t be afraid to ask questions and get help
+- Deadlines are HARD DEADLINES. Please ask all questions and get help before this deadline, do not leave for last second
+- Use Facebook Messenger to communicate about progress/questions/concerns, meeting times, etc. as we can't always be checking GitHub all the time!
+- We will rotate leader/recorder/organizer roles at each meeting
+
+3) Behaviour and regulation
+- Be kind, considerate, and courteous
+- When running into problems, seek help!
+- Help each other! Especially Natasha’s laptop...she's nearing the end of her life rip
+- Snacks
