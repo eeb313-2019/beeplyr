@@ -17,3 +17,9 @@ Sophia:
 - At constant elevation, distribution of hymenopteran genera across a latitudinal gradient with air temperature on the y-axis.
 
 **One has more genera than another because of an unequal number of NA's present in the dataset for each genus' latitude and elevation columns
+
+Madison:
+
+-The basic plot provides an overview of the all orders and includes a count of observations across land usage categories. 
+- Abundance of Hymenoptera families across land usage categories. We predict that species richness will be greatest on Conservation Reserve areas and Nature Wildlife Refuge areas. 
+**The original dataset was modified to remove NAs and filter our Hymenoptera in the second plot. 
