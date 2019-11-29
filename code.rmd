@@ -1,0 +1,118 @@
+# Sophia's section: seeing effects of relative humidity, air temperature, and wind speed on diversity
+---
+title: "Banalysis"
+author: Sophia Fan
+output: pdf_notebook
+---
+
+```{r}
+library(tidyverse)
+library(plyr)
+library(broom)
+library(lmerTest)
+library(lme4)
+library(MuMIn)
+library(car)
+
+setwd('C:/Users/sophi/Documents/uoft 3rd yr/school/fall 2019/eeb313/group project')
+pollinator <- read_csv("Pollinator_Library_Visits_Dataset.csv")
+
+glimpse(pollinator)
+pollinator
+```
+
+```{r}
+#per GPS point diversity index
+diversity.gps <- pollinator %>% 
+  filter(order == "Hymenoptera") %>% 
+  filter(!is.na(elevation) & !is.na(avws) & !is.na(airtemp) & !is.na(relhum) & !is.na(lat)) %>% 
+  group_by(lat, long) %>% 
+  mutate(n = n()) %>% 
+  mutate(diversity = simpsons(n))
+
+# scaling data
+diversity.gps$elevation <- scale(diversity.gps$elevation, center = TRUE, scale = TRUE)
+diversity.gps$lat <- scale(diversity.gps$lat, center = TRUE, scale = TRUE)
+diversity.gps$long <- scale(diversity.gps$long, center = TRUE, scale = TRUE)
+diversity.gps$avws <- scale(diversity.gps$avws, center = TRUE, scale = TRUE)
+diversity.gps$relhum <- scale(diversity.gps$relhum, center = TRUE, scale = TRUE)
+diversity.gps$airtemp <- scale(diversity.gps$airtemp, center = TRUE, scale = TRUE)
+
+diversity.gps
+
+#functions
+simpsons <- function(vector) {
+  sum <- sum(vector)
+  relative <- vector/sum
+  square <- relative^2
+  bigsum <- sum(square)
+  return(1-bigsum)
+}
+```
+
+
+Per GPS point, diversity index
+```{r}
+#Checking for covariance
+initial.mod <- lm(diversity ~ elevation + avws + airtemp + relhum + lat, data = diversity.gps)
+summary(initial.mod)
+vif(initial.mod)
+# elevation and latitude are correlated ...redundant info!
+# most significant factors are relhum, airtemp, and elevation
+
+initial.mod.ele <- lm(diversity ~ elevation + avws + airtemp + relhum, data = diversity.gps)
+initial.mod.lat <- lm(diversity ~ lat + avws + airtemp + relhum, data = diversity.gps)
+
+summary(initial.mod.ele)
+summary(initial.mod.lat)
+
+# R^2 value 0.03142 for initial.mod.lat, better than initial.mod.ele (0.02539) --> only use lat
+
+#Optimize random effects
+mod_intonly <- lmer(diversity ~ lat*relhum*airtemp + (1|county), REML = TRUE, data = diversity.gps)
+
+mod_intslope <- lmer(diversity ~ lat*relhum*airtemp + (1+lat|county), REML = TRUE, data = diversity.gps)
+
+AICc(mod_intonly, mod_intslope)
+#mod_intslope has the smaller AIC value
+
+#Optimize fixed effects
+mod_full <- lmer(diversity ~ lat*relhum*airtemp + (1 + lat|county), REML = FALSE, data = diversity.gps)
+
+mod_lat <- lmer(diversity ~ lat + (1 + lat|county), REML = FALSE, data = diversity.gps)
+
+mod_relhum <- lmer(diversity ~ relhum + (1 + lat|county), REML = FALSE, data = diversity.gps)
+
+mod_airtemp <- lmer(diversity ~ airtemp + (1 + lat|county), REML = FALSE, data = diversity.gps)
+
+mod_lathum <- lmer(diversity ~ lat*relhum + (1 + lat|county), REML = FALSE, data = diversity.gps)
+
+mod_lattemp <- lmer(diversity ~ lat*airtemp + (1 + lat|county), REML = FALSE, data = diversity.gps)
+
+mod_humtemp <- lmer(diversity ~ relhum*airtemp + (1 + lat|county), REML = FALSE, data = diversity.gps)
+
+mod_lathum_nointer <- lmer(diversity ~ lat + relhum + (1 + lat|county), REML = FALSE, data = diversity.gps)
+
+mod_lattemp_nointer <- lmer(diversity ~ lat + airtemp + (1 + lat|county), REML = FALSE, data = diversity.gps)
+
+mod_humtemp_nointer <- lmer(diversity ~ relhum + airtemp + (1 + lat|county), REML = FALSE, data = diversity.gps)
+
+mod_nofix <- lmer(diversity ~ 1 + (1 + lat|county), REML = FALSE, data = diversity.gps)
+
+AICc(mod_full,
+     mod_lat,
+     mod_relhum,
+     mod_airtemp,
+     mod_lathum,
+     mod_lattemp,
+     mod_humtemp,
+     mod_lathum_nointer,
+     mod_lattemp_nointer,
+     mod_humtemp_nointer,
+     mod_nofix)
+
+#mod_full was the best model
+
+summary(mod_full)
+#relhum and lat:airtemp were significant
+```
