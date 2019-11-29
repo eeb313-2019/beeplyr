@@ -419,6 +419,68 @@ The p-value for our predictor variable is also significant. This means that clos
 
 model_full was the best model from question1. human population and spatial variation is not added to the model since it was not significant in predicting diveristy in question 3. 
 
+#Question 4: How does land use affect species diversity and species abundance?
+#Author: Madison Hoenig
+#Overview of Analysis: Assessment of Classical Test Assumptions ,Analysis of Variance
+
+#Necessary Packages
+library(car)
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+
+#Overview of Land Use by Family within Hymenoptera (NA is not inclduded)
+land_hymenoptera <- proj.data %>% 
+  filter(order == 'Hymenoptera')
+  
+land_family<-land_hymenoptera %>% 
+  remove_missing(na.rm = TRUE)%>%
+  ggplot(aes(x = land_use, fill = family))+geom_bar()
+land_family
+
+##Land Use and Species Abundance Analysis
+
+#Checking Assumptions of Normality
+land_norm<-ggplot(abundance, aes(x=n))+
+  geom_histogram()
+land_norm
+
+#Shapiro-Wilk Test
+shapiro.test(abundance$n)
+# P value is less than 0.05, so we can reject the null hypothesis of the Shapiro test. The abundance data is not normally distributed.
+
+#Assessing the Homogeneity of Variances
+leveneTest(n~land_use, data=abundance)
+#We used the levene test as our data was not normally distributed. P value is less than 0.05, we can reject the null hypothesis of the Levene test indicating that variances are not equal and an ANOVA is not suitable. 
+
+#ANOVA (should I just remove this??)
+anova(lm(n~land_use, data=abundance))
+result
+
+##Land Use and Simpson's Species Diveristy Index Analysis
+
+simpsons_diversity_index <-  function (vector){
+    N <- sum(vector)
+    p <- sum(((vector)/sum(vector))^2)
+    print(1-p)
+}
+pol.hymenoptera<- pol.hymenoptera%>% 
+  group_by(family, land_use) %>% 
+  mutate(n = n()) %>% 
+  mutate(diversity = simpsons_diversity_index(n))
+
+#Checking Assumptions of Normality
+#Histogram
+land_div_norm<-ggplot(pol.hymenoptera, aes(x=n))+
+  geom_histogram()
+land_div_norm
+
+#Shapiro-Wilk Test
+shapiro.test(pol.hymenoptera$n)
+# P value is less than 0.05, so we can reject the null hypothesis of the Shapiro test. The abundance data is not normally distributed.
+
+##Working on this and potentialy other diversity measurements like the Brillouin Index for non-random sampling.
+
 
 
 
