@@ -1,0 +1,579 @@
+---
+title: "Final Code"
+author: Natasha, Sophia, Madison
+output:
+  pdf_document: default
+  html_notebook: default
+---
+# _Setting up the dataset:_
+```{r}
+library(tidyverse)
+pol <- read_csv('Pol_Library_Visits_Dataset.csv')
+```
+
+## _Filtering the data:_
+
+- The total pollinator dataset was filtered so that only Hymenoptera families with more than 50 samples were included in the dataset. These families are Andrenidae, Apidae, and Halictidae. Of those families, only the largest genera with greater than 20 samples, Apis, Bombus, Lassioglossum, Melissodes, Perdita were included. After all the data was filtered, more than 800 observations remained.
+- We are using diveristy as the statistic for measuring population dynamics of the pollinator species. Diversity is calculated per unique GPS location. It is assumed that there was uniform sampling of values. 
+
+```{r}
+pol.hymenoptera <- pol%>% 
+  filter(order == 'Hymenoptera') %>% 
+  filter(length(family) >= 50 ) %>% 
+  group_by(genus) %>% 
+  filter(!is.na(genus)) %>% 
+  filter(length(genus) >= 20)
+
+simpsons_diversity_index <-  function (vector){
+    N <- sum(vector)
+    p <- sum(((vector)/sum(vector))^2)
+    print(1-p)
+}
+
+pol.hymenoptera<- pol.hymenoptera%>% 
+  group_by(long, lat) %>% 
+  mutate(n = n()) %>% 
+  mutate(diversity = simpsons_diversity_index(n))
+
+```
+
+# _Question 1:_ 
+_Author_: Sophia Fan
+_Overview of Analysis_ :
+
+Necessary packages
+```{r}
+library(plyr)
+library(broom)
+library(lmerTest)
+library(lme4)
+library(MuMIn)
+library(car)
+```
+
+Data is scaled to allow for unskewed analysis through models
+```{r}
+pol.hymen.scaled <- pol.hymenoptera
+
+pol.hymen.scaled$elevation <- scale(pol.hymen.scaled$elevation, center = TRUE, scale = TRUE)
+pol.hymen.scaled$lat <- scale(pol.hymen.scaled$lat, center = TRUE, scale = TRUE)
+pol.hymen.scaled$long <- scale(pol.hymen.scaled$long, center = TRUE, scale = TRUE)
+pol.hymen.scaled$avws <- scale(pol.hymen.scaled$avws, center = TRUE, scale = TRUE)
+pol.hymen.scaled$relhum <- scale(pol.hymen.scaled$relhum, center = TRUE, scale = TRUE)
+pol.hymen.scaled$airtemp <- scale(pol.hymen.scaled$airtemp, center = TRUE, scale = TRUE)
+```
+
+
+Per GPS point, diversity index
+```{r}
+#Checking for covariance
+initial.mod <- lm(diversity ~ elevation + avws + airtemp + relhum + lat, data = pol.hymen.scaled)
+summary(initial.mod)
+vif(initial.mod)
+# elevation and latitude are correlated ...redundant info!
+# most significant factors are relhum, airtemp, and elevation
+
+initial.mod.ele <- lm(diversity ~ elevation + avws + airtemp + relhum, data = pol.hymen.scaled)
+initial.mod.lat <- lm(diversity ~ lat + avws + airtemp + relhum, data = pol.hymen.scaled)
+
+summary(initial.mod.ele)
+summary(initial.mod.lat)
+
+# R^2 value 0.03142 for initial.mod.lat, better than initial.mod.ele (0.02539) --> only use lat
+
+#Optimize random effects
+mod_intonly <- lmer(diversity ~ lat*relhum*airtemp + (1|county), REML = TRUE, data = pol.hymen.scaled)
+
+mod_intslope <- lmer(diversity ~ lat*relhum*airtemp + (1+lat|county), REML = TRUE, data = pol.hymen.scaled)
+
+AICc(mod_intonly, mod_intslope)
+#mod_intslope has the smaller AIC value
+```
+
+```{r}
+#Optimize fixed effects
+mod_full <- lmer(diversity ~ lat*relhum*airtemp + (1 + lat|county), REML = FALSE, data = pol.hymen.scaled)
+
+mod_lat <- lmer(diversity ~ lat + (1 + lat|county), REML = FALSE, data = pol.hymen.scaled)
+
+mod_relhum <- lmer(diversity ~ relhum + (1 + lat|county), REML = FALSE, data = pol.hymen.scaled)
+
+mod_airtemp <- lmer(diversity ~ airtemp + (1 + lat|county), REML = FALSE, data = pol.hymen.scaled)
+
+mod_lathum <- lmer(diversity ~ lat*relhum + (1 + lat|county), REML = FALSE, data = pol.hymen.scaled)
+
+mod_lattemp <- lmer(diversity ~ lat*airtemp + (1 + lat|county), REML = FALSE, data = pol.hymen.scaled)
+
+mod_humtemp <- lmer(diversity ~ relhum*airtemp + (1 + lat|county), REML = FALSE, data = pol.hymen.scaled)
+
+mod_lathum_nointer <- lmer(diversity ~ lat + relhum + (1 + lat|county), REML = FALSE, data = pol.hymen.scaled)
+
+mod_lattemp_nointer <- lmer(diversity ~ lat + airtemp + (1 + lat|county), REML = FALSE, data = pol.hymen.scaled)
+
+mod_humtemp_nointer <- lmer(diversity ~ relhum + airtemp + (1 + lat|county), REML = FALSE, data = pol.hymen.scaled)
+
+mod_nofix <- lmer(diversity ~ 1 + (1 + lat|county), REML = FALSE, data = pol.hymen.scaled)
+
+AICc(mod_full,
+     mod_lat,
+     mod_relhum,
+     mod_airtemp,
+     mod_lathum,
+     mod_lattemp,
+     mod_humtemp,
+     mod_lathum_nointer,
+     mod_lattemp_nointer,
+     mod_humtemp_nointer,
+     mod_nofix)
+
+#mod_full was the best model
+
+summary(mod_full)
+#relhum and lat:airtemp were significant
+```
+## *things to add*: 
+maybe some plots showing diveristy and the environmental effects. A comprehensive dataset that shows all the model outputs( I am still working on this myself.)
+
+
+----------------------------------------------------------------------------------------------------------
+
+# _Question 2:_ How does land use affect species diversity and species abundance?
+_Author_: Madison Hoenig
+_Overview of Analysis:_ Assessment of Classical Test Assumptions, Analysis of Variance
+
+Necessary Packages
+```{r}
+library(car)
+```
+
+Overview of Land Use by Family within Hymenoptera (NA is not inclduded)
+```{r}
+pol.hymenoptera %>% 
+  ggplot(aes(x = land_use, fill = family))+geom_bar()
+
+```
+
+Land Use and Hymenoptera Family Diveristy Analysis
+```{r}
+#Checking Assumptions of Normality
+pol.hymenoptera %>% 
+  ggplot(aes(x = diversity))+ geom_histogram()
+    # as seen by the graoh, it does not graphically appear that the data is normally distributed
+
+#Shapiro-Wilk Test
+shapiro.test(pol.hymenoptera$diversity)
+    # P value is less than 0.05, so we can reject the null hypothesis of the Shapiro test. The diveristy data is not normally distributed. (p.value, 2.2e-16)
+
+#Assessing the Homogeneity of Variances
+leveneTest(diversity~land_use, data=pol.hymenoptera)
+    # We used the levene test as our data was not normally distributed. P value is less than 0.05, we can reject the null hypothesis of the Levene test indicating that variances are not equal and an ANOVA is not suitable. (p.value, 1.322e-07)
+
+```
+
+```{r}
+#ANOVA 
+anova(lm(diversity~land_use, data=pol.hymenoptera))
+    #p.value is 3.1e-16
+
+anova(lm(diversity~land_use, data=pol.hymenoptera.andrenidea))
+
+```
+
+```{r}
+model1 <- lm(diversity~ land_use, data = pol.hymenoptera)
+summary(model1)
+    # it seems only the research plot, wildlife refuge, and intercept are significant. Total significant p value tho. 
+```
+
+
+
+
+
+-----------------------------------------------------------------------------------------------------------
+
+# _Question 3_: How does human population affects pollinator diversity and distribution. 
+_Author_: Natasha Dhamrait
+_Overview of analysis_: GPS mapping, spatial stats, raster data
+
+Necessary packages:
+```{r}
+library(MASS)
+library(PerformanceAnalytics)
+library(nlme)
+library(sp)
+library(ape)
+library(rgdal)
+library(raster)
+library(maps)
+library(viridis)
+library(reshape2)
+```
+
+
+First need to convert all the GPS coordinates to workable coordinates
+```{r}
+coord.pol <- SpatialPoints(cbind(pol.hymenoptera$long, pol.hymenoptera$lat),
+                                  proj4string=CRS("+proj=longlat +ellps=WGS84"))
+
+sinu.pol <- spTransform(coord.pol, CRS("+proj=sinu +ellps:7271"))
+
+pol.hymenoptera <- bind_cols(pol.hymenoptera, as.data.frame(sinu.pol))
+```
+
+Mapping for the USA
+```{r}
+# all of the USA
+map.usa <- map_data("world", region="usa")
+ 
+# map with state boundaries only including the continuous states
+us_states <- map_data("state")
+
+ggplot() + 
+  geom_polygon(data=us_states, aes(x=long, y=lat, group=group), colour="black", fill = "grey32") + 
+  coord_fixed()+
+  labs(x = "Longitude", y = "Latitude", title = "Distribution of Observations in the Hymenoptera Order")+
+  geom_point(data= pol.hymenoptera, aes(x=long, y=lat, colour= family), size = 3 , alpha = 0.2) +
+    theme_classic()
+
+```
+
+
+plotting graphs for each of the three states and colouring by family/order. To plot each of the 3 states seperately, filter the us_states map data. to seperate per state, additionally filter the pol.hymenoptera df by state. limit the x and y axis so only shows the map area with data points. 
+```{r}
+# Texas only
+texas_only <- us_states %>% 
+  filter(region == "texas")   
+
+ggplot() + 
+  geom_polygon(data=texas_only, aes(x=long, y=lat, group=group), colour="black", fill = "grey32") + 
+  coord_fixed() + xlim(-107,-93)+ ylim(25,37)+
+  labs(x = "Longitude", y = "Latitude", title = "a)")+
+  geom_point(data= pol.hymenoptera, aes(x=long, y=lat, colour= family), size = 3 , alpha = 0.2) +
+    theme_classic()
+
+# North Dakota only
+nd_only <- us_states %>% 
+  filter(region == "north dakota")   
+
+pol.hymen.nd <- pol.hymenoptera %>% 
+  filter(state == "North Dakota")
+
+ggplot() + 
+  geom_polygon(data=nd_only, aes(x=long, y=lat, group=group), colour="black", fill = "grey32") + 
+  coord_fixed()+
+  labs(x = "Longitude", y = "Latitude", title = "b)")+
+  geom_point(data= pol.hymen.nd, aes(x=long, y=lat, colour= genus), size = 3.5 , alpha = 0.2, show.legend = FALSE) +
+    theme_classic()+
+  guides(alpha = FALSE)
+
+# Colorodo only
+col_only <- us_states %>% 
+  filter(region == "colorado")   
+
+ggplot() + 
+  geom_polygon(data=col_only, aes(x=long, y=lat, group=group), colour="black", fill = "grey32") + 
+  coord_fixed() + xlim(-110,-101)+ ylim(36.5,41.5)+ 
+  labs(x = "Longitude", y = "Latitude", title = "c)")+
+  geom_point(data= pol.hymenoptera, aes(x=long, y=lat, colour= family), size = 3 , alpha = 0.2, show.legend = FALSE) +
+    theme_classic()
+```
+
+Overlay of pollinator points over a map of human population density. 
+```{r}
+#download a human populaiton raster from online, assign, extract points for later...
+pop <- raster("w001001.adf") 
+extractions.pop<- raster::extract(pop, coord.pol, df = TRUE, method="bilinear")
+colnames(extractions.pop)[2] <- "hum.pop"
+
+pol.hymenoptera <- as.data.frame(bind_cols(pol.hymenoptera, extractions.pop)) # Note order of rows!
+
+#making raster points into a dataframe so i can plot in ggplot and make nice colors
+raster_points = rasterToPoints(pop)
+raster_df = data.frame(raster_points)
+
+```
+
+
+Plotting with ggplot the raster and points, per state, zommed in. To plot each state, fisrt you need to filter the raster data so the scale is not skewed by big cities, like New York. Then plot the map, raster, and points. modify the axis and color/labs to best illustrate the points.
+```{r}
+#texas 
+raster_df.filtered.tx <- raster_df %>% 
+  filter(x <= -100) %>% 
+  filter(x >= -104) %>% 
+  filter(y >= 32.5) %>% 
+  filter(y <= 36)
+
+ggplot() +
+  geom_polygon(data=texas_only, aes(x=long, y=lat, group=group), colour="black", fill = "grey32") + 
+  geom_tile(data=raster_df.filtered.tx, aes(x=x,y=y,fill=w001001))+
+  scale_fill_gradient(low = "grey25", high = "grey80", "Human Population")+
+  coord_fixed()+ xlim(-103.5,-100.5)+ ylim(33,35.5)+
+  geom_point(data= pol.hymenoptera, aes(x=long, y=lat, colour = diversity), size = 3 , alpha = 0.5)+
+  scale_colour_viridis("Pollinator Diveristy")+
+  labs(x = "Longitude", y = "Latitude", title = "a)")+
+  theme_classic()
+
+#north dakota
+raster_df.filtered.nd <- raster_df %>% 
+  filter(x <= -96) %>% 
+  filter(x >= -100) %>% 
+  filter(y >= 45.5) %>% 
+  filter(y <= 48.5)
+
+ggplot() +
+  geom_polygon(data=nd_only, aes(x=long, y=lat, group=group), colour="black", fill = "grey32") + 
+  geom_tile(data=raster_df.filtered.nd, aes(x=x,y=y,fill=w001001), show.legend = FALSE)+
+  scale_fill_gradient(low = "grey25", high = "grey80")+
+  coord_fixed()+ xlim(-99.8,-96.7)+ ylim(45.8,48.3)+
+  geom_point(data= pol.hymenoptera, aes(x=long, y=lat, colour = diversity), size = 3 , alpha = 0.5, show.legend = FALSE)+
+  scale_colour_viridis()+
+  geom_jitter()+
+  labs(x = "Longitude", y = "Latitude", title = "b)")+
+  theme_classic()
+
+#colorado
+raster_df.filtered.nd <- raster_df %>% 
+  filter(x <= -100) %>% 
+  filter(x >= -110) %>% 
+  filter(y >= 36) %>% 
+  filter(y <= 43)
+
+ggplot() +
+  geom_polygon(data=col_only, aes(x=long, y=lat, group=group), colour="black", fill = "grey32") + 
+  geom_tile(data=raster_df.filtered.nd, aes(x=x,y=y,fill=w001001), show.legend = FALSE)+
+  scale_fill_gradient(low = "grey25", high = "grey80")+
+  coord_fixed()+ xlim(-107.5,-100)+ ylim(38,43)+
+  geom_point(data= pol.hymenoptera, aes(x=long, y=lat, colour = diversity), size = 3 , alpha = 0.5, show.legend = FALSE)+
+  scale_colour_viridis()+
+  geom_jitter()+
+  labs(x = "Longitude", y = "Latitude", title = "c)")+
+  theme(legend.title = element_blank())+
+  theme_classic()
+```
+
+*Spatial stats*: MoranIs, the different projection models. 
+
+For the models, spacial difference is included as a random effect, allowing for closer sites to be more similar than other sites. 
+
+  the gls function, used to inclue spatial variation as a random effect in linear models, cannot work if there are differences between gps coordinates that are zero distances apart (replicates of data at the same gps point). For these models, since we are only interested in diversity and human population per gps coordinate, it is okay to only use one GPS replicate per location. 
+```{r}
+pol.hymen_one.replicate <- pol.hymenoptera %>% 
+  dplyr::select(coords.x1, coords.x2, hum.pop, diversity, long, lat) %>% 
+    group_by(hum.pop, long, lat) %>% 
+  distinct(coords.x1, coords.x2, diversity) 
+```
+
+Basic tests: How does human population relate to pollinator diveristy
+```{r}
+cor.test(pol.hymen_one.replicate$diversity, pol.hymen_one.replicate$hum.pop)
+```
+There is very low variation. Let's see if this improves when including spatial variation as a random effect. 
+
+Projection models: Using AIC to test which model is the best model
+```{r}
+mod <- lm(diversity ~ hum.pop, data = pol.hymen_one.replicate)
+
+mod.exp <- gls(diversity ~ hum.pop, data=pol.hymen_one.replicate,
+               corr= corSpatial(form= ~coords.x1+coords.x2, type ="exponential"))
+
+mod.gau <- gls(diversity ~ hum.pop, data=pol.hymen_one.replicate, 
+               corr=corSpatial(form= ~coords.x1+coords.x2, type ="gaussian"))
+
+mod.lin <-gls(diversity ~ hum.pop, data=pol.hymen_one.replicate, 
+               corr=corSpatial(form= ~coords.x1+coords.x2, type ="linear"))
+
+mod.rat <- gls(diversity ~ hum.pop, data=pol.hymen_one.replicate, 
+               corr=corSpatial(form= ~coords.x1+coords.x2, type ="rational"))
+
+mod.sp <- gls(diversity ~ hum.pop, data=pol.hymen_one.replicate, 
+              corr=corSpatial(form= ~coords.x1+coords.x2, type ="spherical"))
+
+AIC(mod, mod.exp, mod.gau, mod.lin, mod.rat, mod.sp)
+```
+
+mod is the best model since it has the lowest AIC. This means that spatial variation as a random effect is not a significant predictor of the diveristy. This might be due to the reduction in significance due to the increased df. 
+
+```{r}
+summary(mod)
+```
+When I pull up the outputs of the model, human population is not a significant predictor of pollinator density. This can be represented graphically. 
+```{r}
+pol.hymen_one.replicate %>% 
+  ggplot(aes(x = hum.pop, y = diversity)) + 
+  geom_point()+
+  geom_smooth(method = "lm")
+
+pol.hymenoptera %>% 
+  ggplot(aes( x = hum.pop, y = diversity, colour = family))+
+  geom_point()+
+  geom_smooth(method = "lm")+ 
+  facet_wrap(~family)
+```
+
+lets test this per family
+```{r}
+#in a dataframe:
+pol.hymen.df <- pol.hymenoptera%>% 
+    dplyr::select(family, diversity, hum.pop) %>% 
+    group_by(family) %>% 
+    dplyr::do(mod = lm(diversity~ hum.pop, data = .)) %>% 
+    dplyr::mutate(AIC.value = AIC(mod))
+
+pol.hymen.df <- tidy(pol.hymen.df, mod, AIC.value + family) %>%
+    dplyr::select(family, term, estimate, std.error, p.value, AIC.value) %>% 
+    arrange(family, p.value)
+       
+pol.hymen.df
+summary(mod)
+
+#report the call, sample size, degrees of freedom, f-stat, r^2, adjusted r^2, 
+```
+None are significant. 
+
+
+Moran's I: tests if points closer together are more or less similar to eachother compared to points further away
+
+Set up:
+```{r}
+#first i need to modify the coordinates so that they correspond to the one replicate per gps coordinate dataset
+coord.pol.one <- SpatialPoints(cbind(pol.hymen_one.replicate$long, pol.hymen_one.replicate$lat),
+                                  proj4string=CRS("+proj=longlat +ellps=WGS84"))
+
+sinu.pol.one <- spTransform(coord.pol.one, CRS("+proj=sinu +ellps:7271"))
+
+pol.hymen_one.replicate <- bind_cols(pol.hymen_one.replicate, as.data.frame(sinu.pol.one))
+
+#then i need to creat the distance matrix
+dist.matrix <- as.matrix(dist(data.frame(sinu.pol.one)))
+
+inv.dist <- 1/dist.matrix
+
+diag(inv.dist) <- 0
+
+```
+
+Response Variable:
+```{r}
+#rearrange dataframe: genus relative abundances per state
+
+response <- Moran.I(pol.hymen_one.replicate$diversity, inv.dist, alternative="two.sided", na.rm = TRUE, scaled = TRUE) 
+```
+
+The P-value is significant. This means that sites closer together have more similar diveristy characteristics. 
+
+Predictor Variable:
+```{r}
+predictor <- Moran.I(pol.hymen_one.replicate$hum.pop, inv.dist, alternative="two.sided", na.rm = TRUE, scaled = TRUE) 
+```
+
+The p-value for our predictor variable is also significant. This means that closer sites also have more similar human populaitons. 
+
+
+
+
+
+
+
+-------------------------------------------------------------------------------------------------------
+
+# _Combining all questions_: all singificant results in an inclusive models
+
+model_full was the best model from question1. the interaction of human population and spatial variation is not added to the model since it was not significant in predicting diveristy in question 3. 
+
+```{r}
+mod_full <- lmer(diversity ~ lat*relhum*airtemp + (1 + lat|county), REML = FALSE, data = pol.hymen.scaled)
+
+#creating a dataset with scaled values, human population, and coordinates. Since the coordinates are being included in the model, there can only be one value per gps location. All the other values are averaged to account for this. It is predicted that this will decrease the significance of our data. 
+pol.scaled.pop <- pol.hymenoptera %>% 
+  dplyr::select(coords.x1, coords.x2, hum.pop, diversity, long, lat, elevation, avws, relhum, airtemp, hum.pop) %>% 
+  group_by(long, lat) %>% 
+  dplyr::mutate(elevation = mean(elevation)) %>% 
+  dplyr::mutate(avws = mean(avws)) %>% 
+  dplyr::mutate(relhum = mean(relhum)) %>% 
+  dplyr::mutate(airtemp = mean(airtemp)) %>% 
+  distinct(coords.x1, coords.x2, diversity, elevation, avws, relhum, airtemp, hum.pop) %>% 
+  filter(!is.na(elevation)) %>% 
+  filter(!is.na(airtemp)) %>% 
+  filter(!is.na(avws)) %>% 
+  filter(!is.na(relhum))
+
+pol.scaled.pop$elevation <- scale(pol.scaled.pop$elevation, center = TRUE, scale = TRUE)
+pol.scaled.pop$lat <- scale(pol.scaled.pop$lat, center = TRUE, scale = TRUE)
+pol.scaled.pop$long <- scale(pol.scaled.pop$long, center = TRUE, scale = TRUE)
+pol.scaled.pop$avws <- scale(pol.scaled.pop$avws, center = TRUE, scale = TRUE)
+pol.scaled.pop$relhum <- scale(pol.scaled.pop$relhum, center = TRUE, scale = TRUE)
+pol.scaled.pop$airtemp <- scale(pol.scaled.pop$airtemp, center = TRUE, scale = TRUE)
+
+#creating a dataset without including coordinate variation. No need to average the values but the other variables will still need to be scaled. 
+mod.full.coords <-gls(diversity ~ lat*relhum*airtemp + hum.pop, data=pol.scaled.pop, 
+               corr=corSpatial(form= ~coords.x1+coords.x2, type ="linear"))
+
+pol.scaled.pop2 <- pol.hymenoptera %>% 
+  dplyr::select(hum.pop, diversity, land_use, long, lat, elevation, avws, relhum, airtemp, hum.pop, county)
+
+pol.scaled.pop2$elevation <- scale(pol.scaled.pop2$elevation, center = TRUE, scale = TRUE)
+pol.scaled.pop2$lat <- scale(pol.scaled.pop2$lat, center = TRUE, scale = TRUE)
+pol.scaled.pop2$long <- scale(pol.scaled.pop2$long, center = TRUE, scale = TRUE)
+pol.scaled.pop2$avws <- scale(pol.scaled.pop2$avws, center = TRUE, scale = TRUE)
+pol.scaled.pop2$relhum <- scale(pol.scaled.pop2$relhum, center = TRUE, scale = TRUE)
+pol.scaled.pop2$airtemp <- scale(pol.scaled.pop2$airtemp, center = TRUE, scale = TRUE)
+pol.scaled.pop2$hum.pop <- scale(pol.scaled.pop2$hum.pop, center = TRUE, scale = TRUE)
+
+
+model.full.pop <- lmer(diversity ~ lat*relhum*airtemp + hum.pop +(1 + lat|county), REML = FALSE, data = pol.scaled.pop2)
+
+#Run an AIC between model including hum.pop and spatial variaiton with the best model from Q1, adn with only q2. As seen from the AIC, the model without spatial variation is the best model. 
+AIC(mod_full, mod.full.coords)
+    #LOL THIS IS COMICAL, OKAY
+```
+
+ANTHROPOGENIC EFFECTS ONLY (Q1 represents Environmental Effects only)
+```{r}
+#graphically represent land_use and hum.pop interactions with family diverisity
+pol.hymenoptera %>% 
+  ggplot(aes( x=hum.pop , y = diversity, fill = land_use))+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  facet_wrap(~family)
+
+#run a simple model to test how diveristy is influenced by hum.pop*land_use
+pol.hymen.df2 <- pol.hymenoptera%>% 
+    dplyr::select(family, diversity, hum.pop, land_use) %>% 
+    group_by(family) %>% 
+    dplyr::do(mod2 = lm(diversity~ hum.pop*land_use, data = .)) %>% 
+    dplyr::mutate(AIC.value = AIC(mod2))
+
+pol.hymen.df2 <- tidy(pol.hymen.df2, mod2, AIC.value + family) %>%
+    dplyr::select(family, term, estimate, p.value, std.error, AIC.value) %>% 
+    arrange(p.value)
+
+pol.hymen.df2
+#non are significant.
+#report the call, sample size, degrees of freedom, f-stat, r^2, adjusted r^2, 
+```
+
+Since Land use and diveristy and human pop are significant, lets throw it into our total data set. This model accounts for both Anthropogenic effects and Environmental Effects. 
+```{r}
+mod_full <- lmer(diversity ~ lat*relhum*airtemp + (1 + lat|county), REML = FALSE, data = pol.scaled.pop2)
+
+mod_test <- lm(diversity ~ lat*airtemp*relhum + land_use*county, data = pol.scaled.pop2)
+
+mod_test2 <- lm(diversity ~ lat*airtemp*relhum + land_use*hum.pop*county, data = pol.scaled.pop2)
+
+AIC(mod_full, mod_test, mod_test2)
+
+summary(mod_test2)
+
+#pulling up all the model coefficients 
+
+pol.hymen.df.2 <- tidy(mod_test2) %>%
+    dplyr::select(term, estimate, std.error, p.value) %>% 
+  arrange(p.value)
+
+pol.hymen.df.2
+
+```
+
+
+
+
