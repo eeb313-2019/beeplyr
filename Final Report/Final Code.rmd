@@ -37,7 +37,7 @@ pol.hymenoptera<- pol.hymenoptera%>%
 
 ```
 
-# _Question 1:_
+# _Question 1:_ 
 _Author_: Sophia Fan
 _Overview of Analysis_ :
 
@@ -133,6 +133,63 @@ summary(mod_full)
 ```
 ## *things to add*: 
 maybe some plots showing diveristy and the environmental effects. A comprehensive dataset that shows all the model outputs( I am still working on this myself.)
+
+
+----------------------------------------------------------------------------------------------------------
+
+# _Question 2:_ How does land use affect species diversity and species abundance?
+_Author_: Madison Hoenig
+_Overview of Analysis:_ Assessment of Classical Test Assumptions, Analysis of Variance
+
+Necessary Packages
+```{r}
+library(car)
+```
+
+Overview of Land Use by Family within Hymenoptera (NA is not inclduded)
+```{r}
+pol.hymenoptera %>% 
+  ggplot(aes(x = land_use, fill = family))+geom_bar()
+
+```
+
+Land Use and Hymenoptera Family Diveristy Analysis
+```{r}
+#Checking Assumptions of Normality
+pol.hymenoptera %>% 
+  ggplot(aes(x = diversity))+ geom_histogram()
+    # as seen by the graoh, it does not graphically appear that the data is normally distributed
+
+#Shapiro-Wilk Test
+shapiro.test(pol.hymenoptera$diversity)
+    # P value is less than 0.05, so we can reject the null hypothesis of the Shapiro test. The diveristy data is not normally distributed. (p.value, 2.2e-16)
+
+#Assessing the Homogeneity of Variances
+leveneTest(diversity~land_use, data=pol.hymenoptera)
+    # We used the levene test as our data was not normally distributed. P value is less than 0.05, we can reject the null hypothesis of the Levene test indicating that variances are not equal and an ANOVA is not suitable. (p.value, 1.322e-07)
+
+```
+
+```{r}
+#ANOVA 
+anova(lm(diversity~land_use, data=pol.hymenoptera))
+    #p.value is 3.1e-16
+
+anova(lm(diversity~land_use, data=pol.hymenoptera.andrenidea))
+
+```
+
+```{r}
+model1 <- lm(diversity~ land_use, data = pol.hymenoptera)
+summary(model1)
+    # it seems only the research plot, wildlife refuge, and intercept are significant. Total significant p value tho. 
+```
+
+
+
+
+
+-----------------------------------------------------------------------------------------------------------
 
 # _Question 3_: How does human population affects pollinator diversity and distribution. 
 _Author_: Natasha Dhamrait
@@ -233,23 +290,22 @@ pol.hymenoptera <- as.data.frame(bind_cols(pol.hymenoptera, extractions.pop)) # 
 #making raster points into a dataframe so i can plot in ggplot and make nice colors
 raster_points = rasterToPoints(pop)
 raster_df = data.frame(raster_points)
+
 ```
 
 
 Plotting with ggplot the raster and points, per state, zommed in. To plot each state, fisrt you need to filter the raster data so the scale is not skewed by big cities, like New York. Then plot the map, raster, and points. modify the axis and color/labs to best illustrate the points.
 ```{r}
-
 #texas 
 raster_df.filtered.tx <- raster_df %>% 
   filter(x <= -100) %>% 
   filter(x >= -104) %>% 
   filter(y >= 32.5) %>% 
-  filter(y <= 36) %>% 
-  rename(h.density = w001001)
+  filter(y <= 36)
 
 ggplot() +
   geom_polygon(data=texas_only, aes(x=long, y=lat, group=group), colour="black", fill = "grey32") + 
-  geom_tile(data=raster_df.filtered.tx, aes(x=x,y=y,fill=h.density))+
+  geom_tile(data=raster_df.filtered.tx, aes(x=x,y=y,fill=w001001))+
   scale_fill_gradient(low = "grey25", high = "grey80", "Human Population")+
   coord_fixed()+ xlim(-103.5,-100.5)+ ylim(33,35.5)+
   geom_point(data= pol.hymenoptera, aes(x=long, y=lat, colour = diversity), size = 3 , alpha = 0.5)+
@@ -262,12 +318,11 @@ raster_df.filtered.nd <- raster_df %>%
   filter(x <= -96) %>% 
   filter(x >= -100) %>% 
   filter(y >= 45.5) %>% 
-  filter(y <= 48.5) %>% 
-  rename(h.density = w001001)
+  filter(y <= 48.5)
 
 ggplot() +
   geom_polygon(data=nd_only, aes(x=long, y=lat, group=group), colour="black", fill = "grey32") + 
-  geom_tile(data=raster_df.filtered.nd, aes(x=x,y=y,fill=h.density), show.legend = FALSE)+
+  geom_tile(data=raster_df.filtered.nd, aes(x=x,y=y,fill=w001001), show.legend = FALSE)+
   scale_fill_gradient(low = "grey25", high = "grey80")+
   coord_fixed()+ xlim(-99.8,-96.7)+ ylim(45.8,48.3)+
   geom_point(data= pol.hymenoptera, aes(x=long, y=lat, colour = diversity), size = 3 , alpha = 0.5, show.legend = FALSE)+
@@ -281,12 +336,11 @@ raster_df.filtered.nd <- raster_df %>%
   filter(x <= -100) %>% 
   filter(x >= -110) %>% 
   filter(y >= 36) %>% 
-  filter(y <= 43) %>% 
-  rename(h.density = w001001)
+  filter(y <= 43)
 
 ggplot() +
   geom_polygon(data=col_only, aes(x=long, y=lat, group=group), colour="black", fill = "grey32") + 
-  geom_tile(data=raster_df.filtered.nd, aes(x=x,y=y,fill=h.density), show.legend = FALSE)+
+  geom_tile(data=raster_df.filtered.nd, aes(x=x,y=y,fill=w001001), show.legend = FALSE)+
   scale_fill_gradient(low = "grey25", high = "grey80")+
   coord_fixed()+ xlim(-107.5,-100)+ ylim(38,43)+
   geom_point(data= pol.hymenoptera, aes(x=long, y=lat, colour = diversity), size = 3 , alpha = 0.5, show.legend = FALSE)+
@@ -314,7 +368,6 @@ Basic tests: How does human population relate to pollinator diveristy
 cor.test(pol.hymen_one.replicate$diversity, pol.hymen_one.replicate$hum.pop)
 ```
 There is very low variation. Let's see if this improves when including spatial variation as a random effect. 
-
 
 Projection models: Using AIC to test which model is the best model
 ```{r}
@@ -363,12 +416,12 @@ lets test this per family
 pol.hymen.df <- pol.hymenoptera%>% 
     dplyr::select(family, diversity, hum.pop) %>% 
     group_by(family) %>% 
-    do(mod = lm(diversity~ hum.pop, data = .)) %>% 
-    mutate(AIC.value = AIC(mod))
+    dplyr::do(mod = lm(diversity~ hum.pop, data = .)) %>% 
+    dplyr::mutate(AIC.value = AIC(mod))
 
 pol.hymen.df <- tidy(pol.hymen.df, mod, AIC.value + family) %>%
     dplyr::select(family, term, estimate, std.error, p.value, AIC.value) %>% 
-    arrange(family, desc(p.value))
+    arrange(family, p.value)
        
 pol.hymen.df
 summary(mod)
@@ -415,74 +468,111 @@ predictor <- Moran.I(pol.hymen_one.replicate$hum.pop, inv.dist, alternative="two
 
 The p-value for our predictor variable is also significant. This means that closer sites also have more similar human populaitons. 
 
+
+
+
+
+
+
+-------------------------------------------------------------------------------------------------------
+
 # _Combining all questions_: all singificant results in an inclusive models
 
-model_full was the best model from question1. human population and spatial variation is not added to the model since it was not significant in predicting diveristy in question 3. 
+model_full was the best model from question1. the interaction of human population and spatial variation is not added to the model since it was not significant in predicting diveristy in question 3. 
 
-#Question 4: How does land use affect species diversity and species abundance?
-#Author: Madison Hoenig
-#Overview of Analysis: Assessment of Classical Test Assumptions ,Analysis of Variance
+```{r}
+mod_full <- lmer(diversity ~ lat*relhum*airtemp + (1 + lat|county), REML = FALSE, data = pol.hymen.scaled)
 
-#Necessary Packages
-library(car)
-library(dplyr)
-library(ggplot2)
-library(tidyverse)
+#creating a dataset with scaled values, human population, and coordinates. Since the coordinates are being included in the model, there can only be one value per gps location. All the other values are averaged to account for this. It is predicted that this will decrease the significance of our data. 
+pol.scaled.pop <- pol.hymenoptera %>% 
+  dplyr::select(coords.x1, coords.x2, hum.pop, diversity, long, lat, elevation, avws, relhum, airtemp, hum.pop) %>% 
+  group_by(long, lat) %>% 
+  dplyr::mutate(elevation = mean(elevation)) %>% 
+  dplyr::mutate(avws = mean(avws)) %>% 
+  dplyr::mutate(relhum = mean(relhum)) %>% 
+  dplyr::mutate(airtemp = mean(airtemp)) %>% 
+  distinct(coords.x1, coords.x2, diversity, elevation, avws, relhum, airtemp, hum.pop) %>% 
+  filter(!is.na(elevation)) %>% 
+  filter(!is.na(airtemp)) %>% 
+  filter(!is.na(avws)) %>% 
+  filter(!is.na(relhum))
 
-#Overview of Land Use by Family within Hymenoptera (NA is not inclduded)
-land_hymenoptera <- proj.data %>% 
-  filter(order == 'Hymenoptera')
-  
-land_family<-land_hymenoptera %>% 
-  remove_missing(na.rm = TRUE)%>%
-  ggplot(aes(x = land_use, fill = family))+geom_bar()
-land_family
+pol.scaled.pop$elevation <- scale(pol.scaled.pop$elevation, center = TRUE, scale = TRUE)
+pol.scaled.pop$lat <- scale(pol.scaled.pop$lat, center = TRUE, scale = TRUE)
+pol.scaled.pop$long <- scale(pol.scaled.pop$long, center = TRUE, scale = TRUE)
+pol.scaled.pop$avws <- scale(pol.scaled.pop$avws, center = TRUE, scale = TRUE)
+pol.scaled.pop$relhum <- scale(pol.scaled.pop$relhum, center = TRUE, scale = TRUE)
+pol.scaled.pop$airtemp <- scale(pol.scaled.pop$airtemp, center = TRUE, scale = TRUE)
 
-##Land Use and Species Abundance Analysis
+#creating a dataset without including coordinate variation. No need to average the values but the other variables will still need to be scaled. 
+mod.full.coords <-gls(diversity ~ lat*relhum*airtemp + hum.pop, data=pol.scaled.pop, 
+               corr=corSpatial(form= ~coords.x1+coords.x2, type ="linear"))
 
-#Checking Assumptions of Normality
-land_norm<-ggplot(abundance, aes(x=n))+
-  geom_histogram()
-land_norm
+pol.scaled.pop2 <- pol.hymenoptera %>% 
+  dplyr::select(hum.pop, diversity, land_use, long, lat, elevation, avws, relhum, airtemp, hum.pop, county)
 
-#Shapiro-Wilk Test
-shapiro.test(abundance$n)
-# P value is less than 0.05, so we can reject the null hypothesis of the Shapiro test. The abundance data is not normally distributed.
-
-#Assessing the Homogeneity of Variances
-leveneTest(n~land_use, data=abundance)
-#We used the levene test as our data was not normally distributed. P value is less than 0.05, we can reject the null hypothesis of the Levene test indicating that variances are not equal and an ANOVA is not suitable. 
-
-#ANOVA (should I just remove this??)
-anova(lm(n~land_use, data=abundance))
-result
-
-##Land Use and Simpson's Species Diveristy Index Analysis
-
-simpsons_diversity_index <-  function (vector){
-    N <- sum(vector)
-    p <- sum(((vector)/sum(vector))^2)
-    print(1-p)
-}
-pol.hymenoptera<- pol.hymenoptera%>% 
-  group_by(family, land_use) %>% 
-  mutate(n = n()) %>% 
-  mutate(diversity = simpsons_diversity_index(n))
-
-#Checking Assumptions of Normality
-#Histogram
-land_div_norm<-ggplot(pol.hymenoptera, aes(x=n))+
-  geom_histogram()
-land_div_norm
-
-#Shapiro-Wilk Test
-shapiro.test(pol.hymenoptera$n)
-# P value is less than 0.05, so we can reject the null hypothesis of the Shapiro test. The abundance data is not normally distributed.
-
-##Working on this and potentialy other diversity measurements like the Brillouin Index for non-random sampling.
+pol.scaled.pop2$elevation <- scale(pol.scaled.pop2$elevation, center = TRUE, scale = TRUE)
+pol.scaled.pop2$lat <- scale(pol.scaled.pop2$lat, center = TRUE, scale = TRUE)
+pol.scaled.pop2$long <- scale(pol.scaled.pop2$long, center = TRUE, scale = TRUE)
+pol.scaled.pop2$avws <- scale(pol.scaled.pop2$avws, center = TRUE, scale = TRUE)
+pol.scaled.pop2$relhum <- scale(pol.scaled.pop2$relhum, center = TRUE, scale = TRUE)
+pol.scaled.pop2$airtemp <- scale(pol.scaled.pop2$airtemp, center = TRUE, scale = TRUE)
+pol.scaled.pop2$hum.pop <- scale(pol.scaled.pop2$hum.pop, center = TRUE, scale = TRUE)
 
 
+model.full.pop <- lmer(diversity ~ lat*relhum*airtemp + hum.pop +(1 + lat|county), REML = FALSE, data = pol.scaled.pop2)
 
+#Run an AIC between model including hum.pop and spatial variaiton with the best model from Q1, adn with only q2. As seen from the AIC, the model without spatial variation is the best model. 
+AIC(mod_full, mod.full.coords)
+    #LOL THIS IS COMICAL, OKAY
+```
+
+ANTHROPOGENIC EFFECTS ONLY (Q1 represents Environmental Effects only)
+```{r}
+#graphically represent land_use and hum.pop interactions with family diverisity
+pol.hymenoptera %>% 
+  ggplot(aes( x=hum.pop , y = diversity, fill = land_use))+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  facet_wrap(~family)
+
+#run a simple model to test how diveristy is influenced by hum.pop*land_use
+pol.hymen.df2 <- pol.hymenoptera%>% 
+    dplyr::select(family, diversity, hum.pop, land_use) %>% 
+    group_by(family) %>% 
+    dplyr::do(mod2 = lm(diversity~ hum.pop*land_use, data = .)) %>% 
+    dplyr::mutate(AIC.value = AIC(mod2))
+
+pol.hymen.df2 <- tidy(pol.hymen.df2, mod2, AIC.value + family) %>%
+    dplyr::select(family, term, estimate, p.value, std.error, AIC.value) %>% 
+    arrange(p.value)
+
+pol.hymen.df2
+#non are significant.
+#report the call, sample size, degrees of freedom, f-stat, r^2, adjusted r^2, 
+```
+
+Since Land use and diveristy and human pop are significant, lets throw it into our total data set. This model accounts for both Anthropogenic effects and Environmental Effects. 
+```{r}
+mod_full <- lmer(diversity ~ lat*relhum*airtemp + (1 + lat|county), REML = FALSE, data = pol.scaled.pop2)
+
+mod_test <- lm(diversity ~ lat*airtemp*relhum + land_use*county, data = pol.scaled.pop2)
+
+mod_test2 <- lm(diversity ~ lat*airtemp*relhum + land_use*hum.pop*county, data = pol.scaled.pop2)
+
+AIC(mod_full, mod_test, mod_test2)
+
+summary(mod_test2)
+
+#pulling up all the model coefficients 
+
+pol.hymen.df.2 <- tidy(mod_test2) %>%
+    dplyr::select(term, estimate, std.error, p.value) %>% 
+  arrange(p.value)
+
+pol.hymen.df.2
+
+```
 
 
 
