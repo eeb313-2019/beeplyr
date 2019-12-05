@@ -152,37 +152,44 @@ pol.hymenoptera %>%
   ggplot(aes(x = land_use, fill = family))+geom_bar()
 
 ```
+Transforming data to account for right-skewness
+```{r}
+pol.hymenoptera$transf_Y<-(pol.hymenoptera$diversity)^(1/3)
+```
+Land Use and Hymenoptera Family Diversity Analysis
 
-Land Use and Hymenoptera Family Diveristy Analysis
 ```{r}
 #Checking Assumptions of Normality
 pol.hymenoptera %>% 
-  ggplot(aes(x = diversity))+ geom_histogram()
-    # as seen by the graoh, it does not graphically appear that the data is normally distributed
+  ggplot(aes(x = transf_Y, fill=family, xlab= "Diversity Index"))+ geom_histogram()
+    # as seen by the graph, it does not graphically appear that the data is normally distributed
 
-#Shapiro-Wilk Test
-shapiro.test(pol.hymenoptera$diversity)
+#Shapiro-Wilk's Test
+shapiro.test(pol.hymenoptera$transf_Y)
     # P value is less than 0.05, so we can reject the null hypothesis of the Shapiro test. The diveristy data is not normally distributed. (p.value, 2.2e-16)
 
 #Assessing the Homogeneity of Variances
-leveneTest(diversity~land_use, data=pol.hymenoptera)
+leveneTest(transf_Y~land_use, data=pol.hymenoptera)
     # We used the levene test as our data was not normally distributed. P value is less than 0.05, we can reject the null hypothesis of the Levene test indicating that variances are not equal and an ANOVA is not suitable. (p.value, 1.322e-07)
 
 ```
 
 ```{r}
 #ANOVA 
-anova(lm(diversity~land_use, data=pol.hymenoptera))
+land_anova<-anova(lm(transf_Y~land_use, data=pol.hymenoptera))
+land_anova
     #p.value is 3.1e-16
-
-anova(lm(diversity~land_use, data=pol.hymenoptera.andrenidea))
 
 ```
 
 ```{r}
-model1 <- lm(diversity~ land_use, data = pol.hymenoptera)
+model1<- lm(diversity~land_use, data=pol.hymenoptera)
 summary(model1)
-    # it seems only the research plot, wildlife refuge, and intercept are significant. Total significant p value tho. 
+# The research plot, wildlife refuge, and intercept are significant. (P value: 3.1e-16)
+
+model_land_adj<- lm(transf_Y~ land_use, data =pol.hymenoptera)
+summary(model_land_adj)
+    # With the inclusion of transformed diversity index only the intercept and the research plot are significant. (P value: 4.046e-05)
 ```
 
 
