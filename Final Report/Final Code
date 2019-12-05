@@ -190,6 +190,9 @@ summary(model1)
 model_land_adj<- lm(transf_Y~ land_use, data =pol.hymenoptera)
 summary(model_land_adj)
     # With the inclusion of transformed diversity index only the intercept and the research plot are significant. (P value: 4.046e-05)
+    
+    #AIC scores
+    AICc(model1,model_land_adj)
 ```
 
 
