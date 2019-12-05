@@ -8,6 +8,8 @@ output:
 # _Setting up the dataset:_
 ```{r}
 library(tidyverse)
+pol_data_url <- 'https://github.com/eeb313-2019/beeplyr/raw/master/Datasets/Pollinator_Library_Visits_Dataset.csv'
+download.file(pol_data_url, 'Pol_Library_Visits_Dataset.csv')
 pol <- read_csv('Pol_Library_Visits_Dataset.csv')
 ```
 
@@ -149,7 +151,10 @@ library(car)
 Overview of Land Use by Family within Hymenoptera (NA is not inclduded)
 ```{r}
 pol.hymenoptera %>% 
-  ggplot(aes(x = land_use, fill = family))+geom_bar()
+  ggplot(aes(x = land_use, y = diversity, fill = family))+
+  geom_boxplot()+
+  xlab("Land Use") + ylab("Diversity")+
+  theme_classic()
 
 ```
 
@@ -175,14 +180,16 @@ leveneTest(diversity~land_use, data=pol.hymenoptera)
 anova(lm(diversity~land_use, data=pol.hymenoptera))
     #p.value is 3.1e-16
 
-anova(lm(diversity~land_use, data=pol.hymenoptera.andrenidea))
-
 ```
 
 ```{r}
 model1 <- lm(diversity~ land_use, data = pol.hymenoptera)
 summary(model1)
+
+AIC(model1)
     # it seems only the research plot, wildlife refuge, and intercept are significant. Total significant p value tho. 
+
+#there are 5 assumptions: Normality, (transformation), homostedastic, independent sampling. 
 ```
 
 
@@ -231,7 +238,7 @@ us_states <- map_data("state")
 ggplot() + 
   geom_polygon(data=us_states, aes(x=long, y=lat, group=group), colour="black", fill = "grey32") + 
   coord_fixed()+
-  labs(x = "Longitude", y = "Latitude", title = "Distribution of Observations in the Hymenoptera Order")+
+  labs(x = "Longitude", y = "Latitude", title = "Distribution of Observations in the Order Hymenoptera")+
   geom_point(data= pol.hymenoptera, aes(x=long, y=lat, colour= family), size = 3 , alpha = 0.2) +
     theme_classic()
 
@@ -281,7 +288,10 @@ ggplot() +
 Overlay of pollinator points over a map of human population density. 
 ```{r}
 #download a human populaiton raster from online, assign, extract points for later...
-pop <- raster("w001001.adf") 
+pop_data_url <- 'https://github.com/eeb313-2019/beeplyr/raw/master/Datasets/w001001x.adf'
+download.file(pop_data_url, 'w001001x.adf')
+pop <- raster("w001001x.adf") 
+
 extractions.pop<- raster::extract(pop, coord.pol, df = TRUE, method="bilinear")
 colnames(extractions.pop)[2] <- "hum.pop"
 
@@ -305,7 +315,7 @@ raster_df.filtered.tx <- raster_df %>%
 
 ggplot() +
   geom_polygon(data=texas_only, aes(x=long, y=lat, group=group), colour="black", fill = "grey32") + 
-  geom_tile(data=raster_df.filtered.tx, aes(x=x,y=y,fill=w001001))+
+  geom_tile(data=raster_df.filtered.tx, aes(x=x,y=y,fill=w001001x))+
   scale_fill_gradient(low = "grey25", high = "grey80", "Human Population")+
   coord_fixed()+ xlim(-103.5,-100.5)+ ylim(33,35.5)+
   geom_point(data= pol.hymenoptera, aes(x=long, y=lat, colour = diversity), size = 3 , alpha = 0.5)+
@@ -322,7 +332,7 @@ raster_df.filtered.nd <- raster_df %>%
 
 ggplot() +
   geom_polygon(data=nd_only, aes(x=long, y=lat, group=group), colour="black", fill = "grey32") + 
-  geom_tile(data=raster_df.filtered.nd, aes(x=x,y=y,fill=w001001), show.legend = FALSE)+
+  geom_tile(data=raster_df.filtered.nd, aes(x=x,y=y,fill=w001001x), show.legend = FALSE)+
   scale_fill_gradient(low = "grey25", high = "grey80")+
   coord_fixed()+ xlim(-99.8,-96.7)+ ylim(45.8,48.3)+
   geom_point(data= pol.hymenoptera, aes(x=long, y=lat, colour = diversity), size = 3 , alpha = 0.5, show.legend = FALSE)+
@@ -340,7 +350,7 @@ raster_df.filtered.nd <- raster_df %>%
 
 ggplot() +
   geom_polygon(data=col_only, aes(x=long, y=lat, group=group), colour="black", fill = "grey32") + 
-  geom_tile(data=raster_df.filtered.nd, aes(x=x,y=y,fill=w001001), show.legend = FALSE)+
+  geom_tile(data=raster_df.filtered.nd, aes(x=x,y=y,fill=w001001x), show.legend = FALSE)+
   scale_fill_gradient(low = "grey25", high = "grey80")+
   coord_fixed()+ xlim(-107.5,-100)+ ylim(38,43)+
   geom_point(data= pol.hymenoptera, aes(x=long, y=lat, colour = diversity), size = 3 , alpha = 0.5, show.legend = FALSE)+
@@ -366,6 +376,14 @@ pol.hymen_one.replicate <- pol.hymenoptera %>%
 Basic tests: How does human population relate to pollinator diveristy
 ```{r}
 cor.test(pol.hymen_one.replicate$diversity, pol.hymen_one.replicate$hum.pop)
+
+pol.hymenoptera %>% 
+  ggplot( aes( x = hum.pop))+ geom_histogram()
+
+shapiro.test(pol.hymenoptera$hum.pop)
+    # P value is less than 0.05, so we can reject the null hypothesis of the Shapiro test. The diveristy data is not normally distributed. (p.value, 2.2e-16)
+
+var.test(x = hum.pop, y = diversity, data = pol.hymenoptera, alternative = "two.sided")
 ```
 There is very low variation. Let's see if this improves when including spatial variation as a random effect. 
 
@@ -548,6 +566,10 @@ pol.hymen.df2 <- tidy(pol.hymen.df2, mod2, AIC.value + family) %>%
     arrange(p.value)
 
 pol.hymen.df2
+
+mod_anthro <- lm(diversity~ hum.pop*land_use, data = pol.hymenoptera)
+AIC(mod_anthro)
+summary(mod_anthro)
 #non are significant.
 #report the call, sample size, degrees of freedom, f-stat, r^2, adjusted r^2, 
 ```
@@ -570,8 +592,13 @@ pol.hymen.df.2 <- tidy(mod_test2) %>%
     dplyr::select(term, estimate, std.error, p.value) %>% 
   arrange(p.value)
 
+#compare model with the others....
+
 pol.hymen.df.2
 
+
+summary(mod_test2)
+# What are the inherent bias of this data?
 ```
 
 
